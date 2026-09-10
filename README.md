@@ -10,20 +10,24 @@ React + Vite app that:
 
 ## 1. How the "database" works
 
-There's no traditional backend. The app reads word data directly from a
-Google Sheet that you **publish to the web as a CSV file**. This gives you a
-free, publicly-readable JSON-like data source with zero server code.
+There's no traditional backend server. Instead, a small **Google Apps
+Script** (`apps-script/Code.gs`) is bound to your Google Sheet and deployed
+as a Web App. It reads/writes the Sheet directly, and the React app just
+calls that Web App's URL — so your Sheet works like a lightweight database:
 
-> Note: because there's no backend, the app can't *write* progress back to
-> the sheet. Word rotation is calculated automatically from the date instead
-> (see step 4), so no write access is needed. If you later want to save
-> user progress, you'd add a small backend (e.g. a Google Apps Script Web
-> App) — happy to help with that as a next step.
+- `GET  ?action=words` → returns every row from the **Words** tab as JSON
+- `POST { action: "logAttempt", ... }` → appends a row to the **Attempts**
+  tab, so every sentence someone speaks and its correction gets saved
+
+This also means the sheet can stay **private** (only shared with your own
+Google account) — unlike the old "Publish to web as CSV" approach, nobody
+needs public read access to your data.
 
 ### Set up your Google Sheet
 
 1. Create a new Google Sheet.
-2. In row 1, add these exact column headers:
+2. In row 1 of the first tab, add these exact column headers, and rename
+   the tab itself to **Words**:
 
    | id | english | tamil | example_en | example_ta |
    |----|---------|-------|------------|------------|
@@ -31,13 +35,25 @@ free, publicly-readable JSON-like data source with zero server code.
 3. Fill in rows below with your words. A ready-made starter list of 30 words
    is included at `src/data/words.sample.csv` — open it and copy/paste the
    rows into your sheet (File → Import in Google Sheets works too).
-4. Publish it to the web:
-   - **File → Share → Publish to web**
-   - Under "Link", choose the specific sheet/tab your words are on
-   - Choose **Comma-separated values (.csv)** as the format
-   - Click **Publish**, confirm, and copy the link it gives you
+4. You do **not** need to create an "Attempts" tab — the script creates it
+   automatically the first time someone speaks a sentence.
 
-That link is your `VITE_SHEET_CSV_URL`.
+### Deploy the Apps Script backend
+
+1. In your Sheet, go to **Extensions → Apps Script**.
+2. Delete the placeholder `myFunction() {}` code, then paste in the full
+   contents of `apps-script/Code.gs` from this project.
+3. Click **Deploy → New deployment**.
+   - Click the gear icon next to "Select type" → choose **Web app**.
+   - Execute as: **Me**
+   - Who has access: **Anyone**
+   - Click **Deploy**, and authorize it when Google asks (it's your own
+     script acting on your own sheet).
+4. Copy the **Web app URL** — it ends in `/exec`. That's your
+   `VITE_SHEETS_API_URL`.
+5. Any time you edit `Code.gs` later, you must push a **new version**
+   (Deploy → Manage deployments → pencil icon → New version) — editing the
+   code alone doesn't update the live `/exec` URL.
 
 ---
 
@@ -46,7 +62,7 @@ That link is your `VITE_SHEET_CSV_URL`.
 ```bash
 npm install
 cp .env.example .env
-# paste your published CSV link into .env
+# paste your Apps Script Web app URL into .env as VITE_SHEETS_API_URL
 npm run dev
 ```
 
@@ -81,10 +97,10 @@ When prompted, accept the defaults (Vercel auto-detects the Vite project).
 Then add your environment variable so it's available at build time:
 
 ```bash
-vercel env add VITE_SHEET_CSV_URL
+vercel env add VITE_SHEETS_API_URL
 ```
 
-Paste your published CSV link when prompted, then redeploy:
+Paste your Apps Script Web app URL when prompted, then redeploy:
 
 ```bash
 vercel --prod
@@ -96,12 +112,14 @@ vercel --prod
 2. Framework preset: **Vite** (auto-detected).
 3. Build command: `npm run build` — Output directory: `dist`.
 4. In **Project Settings → Environment Variables**, add:
-   `VITE_SHEET_CSV_URL` = your published CSV link.
+   `VITE_SHEETS_API_URL` = your Apps Script Web app URL.
 5. Deploy.
 
 > Important: `VITE_...` env vars are baked into the app **at build time**,
-> not read at runtime. If you change the sheet's *publish link* (not its
-> content — just editing rows is fine), you need to redeploy.
+> not read at runtime. If you ever create a **new** Apps Script deployment
+> (getting a new `/exec` URL), you need to update the env var and redeploy.
+> Just editing rows in the Sheet, or pushing a new *version* of an existing
+> deployment, needs no redeploy.
 
 ---
 
@@ -128,7 +146,7 @@ src/
     DailyWords.jsx     # word-of-the-day cards
     SpeakCorrect.jsx    # mic input + grammar correction
   lib/
-    sheet.js            # fetch & parse the Google Sheet CSV
+    sheet.js            # fetch words & log attempts via the Apps Script API
     grammar.js           # LanguageTool API calls
   data/
     words.sample.csv    # starter word list to paste into your sheet

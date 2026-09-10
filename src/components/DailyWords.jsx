@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchWords, pickDailyWords } from '../lib/sheet'
 
-const CSV_URL = import.meta.env.VITE_SHEET_CSV_URL
+const API_URL = import.meta.env.VITE_SHEETS_API_URL
 
 export default function DailyWords() {
   const [words, setWords] = useState([])
@@ -9,14 +9,14 @@ export default function DailyWords() {
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
-    if (!CSV_URL) {
+    if (!API_URL) {
       setStatus('error')
       setErrorMsg(
-        'No Google Sheet connected yet. Add VITE_SHEET_CSV_URL in your .env file, then rebuild.'
+        'No Google Sheet connected yet. Add VITE_SHEETS_API_URL in your .env file, then rebuild.'
       )
       return
     }
-    fetchWords(CSV_URL)
+    fetchWords(API_URL)
       .then((all) => {
         setWords(pickDailyWords(all, 10))
         setStatus('done')

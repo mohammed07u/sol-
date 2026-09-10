@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
 import { checkGrammar, applyBestCorrections } from '../lib/grammar'
+import { logAttempt } from '../lib/sheet'
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+const API_URL = import.meta.env.VITE_SHEETS_API_URL
 
 export default function SpeakCorrect() {
   const [listening, setListening] = useState(false)
@@ -31,9 +33,15 @@ export default function SpeakCorrect() {
       setStatus('checking')
       try {
         const found = await checkGrammar(text)
+        const fixed = applyBestCorrections(text, found)
         setMatches(found)
-        setCorrected(applyBestCorrections(text, found))
+        setCorrected(fixed)
         setStatus('done')
+        logAttempt(API_URL, {
+          spoken: text,
+          corrected: fixed,
+          notes: found.map((m) => m.shortMessage || m.ruleCategory || 'Tip').join('; '),
+        })
       } catch (err) {
         setErrorMsg(err.message)
         setStatus('error')
